@@ -1,5 +1,11 @@
 # Iyzipay laravel Package
+
+[![Issues](https://img.shields.io/github/issues/abheranj/iyzipay-laravel?style=flat-square)](https://github.com/abheranj/iyzipay-laravel/issues)
+[![Stars](https://img.shields.io/github/stars/abheranj/iyzipay-laravel?style=flat-square)](https://github.com/abheranj/iyzipay-laravel/stargazers)
+
 Iyzipay (by AbheRanj) integration for your Laravel projects.
+
+You can sign up for an iyzipay sandbox account at https://sandbox-merchant.iyzipay.com/auth/login
 
 ## Install
 

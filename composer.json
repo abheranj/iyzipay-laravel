@@ -1,0 +1,38 @@
+{
+    "name": "abheranj/iyzipay",
+    "description": "Iyzipay (by AbheRanj) integration for your Laravel projects.",
+    "type": "library",
+    "keywords": [
+        "iyzipay-laravel",
+        "iyzico",
+        "iyzipay",
+        "AbheRanj-iyzipay"
+    ],
+    "version": "1.0.0",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Abheranj\\Iyzipay\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "AbheRanj"
+        }
+    ],
+    "require": {
+        "iyzico/iyzipay-php": "^2.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Abheranj\\Iyzipay\\IyzipayServiceProvider"
+            ],
+            "aliases": {
+                "Iyzipay": "Abheranj\\Iyzipay\\Facades\\IyzipayService"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

@@ -253,7 +253,7 @@ LIVE_IYZIPAY_SECRET_KEY="Live Secret Key"
 
 ```
 
-### Test Cards
+## Test Cards
 
 Test cards that can be used to simulate a *successful* payment:
 

@@ -411,16 +411,6 @@ LIVE_IYZIPAY_SECRET_KEY="Live Secret Key"
                 $Payment = $this->TransactionsRep->AddTransaction($Transaction->getPaidPrice(), $Transaction->getPaymentId(), $Transaction->getCurrency(), $Card->id, $Products, $PayoutMerchant, json_decode($Card->billing_info));
                 DB::commit();
                 
-                if($SubscriptionData['validity']==1) {
-                    $validity = '1 Month';
-                } elseif ($SubscriptionData['validity']==2) {
-                    $validity = '3 Months';
-                } elseif ($SubscriptionData['validity']==3) {
-                    $validity = '6 Months';
-                } else {
-                    $validity = '12 Months';
-                }
-
                 Session::flash('message', __('messages.subscriptions.buy_success')); 
                 Session::flash('icon', 'success'); 
                 Session::flash('heading', __('messages.common.success'));

@@ -349,7 +349,7 @@ LIVE_IYZIPAY_SECRET_KEY="Live Secret Key"
 
 ```
 
-### Initialize 3D Auth payment 
+### 3D Auth payment 
 
 ``` php
 

@@ -58,6 +58,8 @@ LIVE_IYZIPAY_SECRET_KEY="Live Secret Key"
 - Iyzipay::singlePayment($creditCard, $buyer_arr, $billaddress, $shipaddress, $products, $currency, $installment, $subscription = false)
 - Iyzipay::cancelPayment($iyzipay_key)
 - Iyzipay::refundPayment($iyzipay_key, $price, $currency)
+- Iyzipay::ThreedsInitializePayment($CardArr, $BuyerArr, $AddressArr, $AddressArr, $ProductArr, $Currency, $Installment, $CallBackUrl);
+- Iyzipay::PayThreedsPayment($requestArr)
 
 ## Usage
 
@@ -256,6 +258,185 @@ LIVE_IYZIPAY_SECRET_KEY="Live Secret Key"
         Session::flash('message', $Amount.' Amount Refunded successfully.'); 
         Session::flash('icon', 'success'); 
         return redirect()->back();
+
+```
+
+## 3D Auth (3D Secure) 
+
+### Initialize 3D Auth payment 
+
+``` php
+
+    try{
+        DB::beginTransaction();
+        $SubscriptionData = $this->SubscriptionsRep->GetSubscriptionById($request->pid);
+        
+        $card_details = [];
+        $card_details['alias']  = 'Card'.Auth::user()->id;
+        $card_details['holder'] = $request->card_name;
+        $card_details['number'] = $request->card_number;
+        $card_details['month']  = $request->exp_month;
+        $card_details['year']   = $request->exp_year;
+    
+        $CardRes = Iyzipay::addCreditCard(Auth::user()->email, '', $card_details);
+        if($CardRes->getStatus() != 'success'){
+            Session::flash('message', $CardRes->getErrorMessage()); 
+            Session::flash('icon', 'warning'); 
+            Session::flash('heading', __('messages.common.warning'));
+            return redirect()->back()->withInput($request->input());
+        }
+        
+        $Card = $this->CardsRep->AddEditCards(
+            $request->card_name,
+            $CardRes->getCardAlias(), 
+            $request->card_number, 
+            $CardRes->getCardToken(), 
+            $CardRes->getCardUserKey(), 
+            $CardRes->getCardBankName()
+        );
+        
+        $CardArr = [];
+        $CardArr['iyzipay_key'] = $Card->iyzipay_key;
+        $CardArr['token']       = $Card->token;
+        
+        $BuyerArr = [];
+        $BuyerArr['id']             = 'B'.Auth::user()->id;
+        $BuyerArr['firstName']      = Auth::user()->name;
+        $BuyerArr['lastName']       = Auth::user()->surname;
+        $BuyerArr['email']          = Auth::user()->email;
+        $BuyerArr['mobileNumber']   = Auth::user()->phone_no;
+        $BuyerArr['identityNumber'] = Auth::user()->phone_no;
+        $BuyerArr['city']           = $request->city;
+        $BuyerArr['country']        = $request->country;
+        $BuyerArr['address']        = $request->address;
+        
+        $AddressArr = [];
+        $AddressArr['name']     = $request->name;
+        $AddressArr['city']     = $request->city;
+        $AddressArr['country']  = $request->country;
+        $AddressArr['address']  = $request->address;
+        $AddressArr['zipcode']  = $request->postcode;
+        
+        $ProductArr = [];
+        $ProductArr[0]['id']       = $SubscriptionData['id'];
+        $ProductArr[0]['name']     = $SubscriptionData['name'];
+        $ProductArr[0]['category'] = 'Subscription';
+        $ProductArr[0]['type']     = BasketItemType::VIRTUAL;
+        $ProductArr[0]['price']    = $SubscriptionData['price'];
+        
+        $Currency       = Currency::TL;
+        $Installment    = 1;
+        $CallBackUrl    = route('payment_confirm');
+        
+        $Card->billing_info = json_encode($AddressArr);
+        $Card->save();
+
+        $Transaction = Iyzipay::ThreedsInitializePayment($CardArr, $BuyerArr, $AddressArr, $AddressArr, $ProductArr, $Currency, $Installment, $CallBackUrl);
+        if($Transaction->getStatus() == 'success'){
+            DB::commit();
+            return view('subscriptions.payment_response', ['htmlform' => base64_encode($Transaction->getHtmlContent()), 'page_name'=>'Payment response']);
+            
+        } else {
+            Session::flash('message', $Transaction->getErrorMessage()); 
+            Session::flash('icon', 'warning'); 
+            Session::flash('heading', __('messages.common.warning'));
+            return redirect()->back()->withInput($request->input());
+        }
+    } catch (Exception $e) {
+        DB::rollback();
+        return response()->view('error.500', ['message'=>$e->getMessage()], 500);
+    }
+
+```
+
+### Initialize 3D Auth payment 
+
+``` php
+
+    try{
+            if($request->mdStatus!="1"){
+                Session::flash('message', __('messages.transactions.mdStatus'.$request->mdStatus)); 
+                Session::flash('icon', 'warning'); 
+                Session::flash('heading', __('messages.common.warning'));
+                return redirect()->route('dissubscriptions', ['page_name'=>'Subscription Plans']);
+            }
+
+            if ($request->status != 'success') {
+                Session::flash('message', __('messages.common.somthing_wrong')); 
+                Session::flash('icon', 'warning'); 
+                Session::flash('heading', __('messages.common.warning'));
+                return redirect()->route('dissubscriptions', ['page_name'=>'Subscription Plans']);
+            }
+            
+            if(empty($request->paymentId)){
+                Session::flash('message', __('messages.common.somthing_wrong')); 
+                Session::flash('icon', 'warning'); 
+                Session::flash('heading', __('messages.common.warning'));
+                return redirect()->route('dissubscriptions', ['page_name'=>'Subscription Plans']);
+            }
+            
+            $requestArr = array('paymentId'=>$request->paymentId, 'conversationData'=>$request->conversationData, 'conversationId'=>$request->conversationId);
+            $Transaction    = Iyzipay::PayThreedsPayment($requestArr);
+            
+            if($Transaction->getStatus() == 'success'){
+                $Transactions       = $Transaction->getPaymentItems();
+                $SubscriptionData   = $this->SubscriptionsRep->GetSubscriptionById($Transactions[0]->getItemId());
+                $CardToken          = $Transaction->getCardToken();
+                $Card               = $this->CardsRep->GetCardByToken($CardToken); 
+                
+                if(empty($SubscriptionData)){
+                    Session::flash('message', __('messages.subscriptions.not_found')); 
+                    Session::flash('icon', 'warning'); 
+                    Session::flash('heading', __('messages.common.warning'));
+                    return redirect()->route('dissubscriptions', ['page_name'=>'Subscription Plans']);
+                }
+                
+                $Products       = [];
+                $PayoutMerchant = [];
+                foreach ($Transaction->getPaymentItems() as $paymentItem) {
+                    $Products[] = [
+                        'iyzipay_key'                   => $paymentItem->getPaymentTransactionId(),
+                        'paidPrice'                     => $paymentItem->getPaidPrice(),
+                        'product'                       => [$SubscriptionData]
+                    ];
+                    $PayoutMerchant[] = [
+                        'merchantCommissionRate'        => $paymentItem->getMerchantCommissionRate(),
+                        'merchantCommissionRateAmount'  => $paymentItem->getMerchantCommissionRateAmount(),
+                        'iyziCommissionRateAmount'      => $paymentItem->getIyziCommissionRateAmount(),
+                        'iyziCommissionFee'             => $paymentItem->getIyziCommissionFee(),
+                        'merchantPayoutAmount'          => $paymentItem->getMerchantPayoutAmount()
+                    ];
+                }
+                
+                $Payment = $this->TransactionsRep->AddTransaction($Transaction->getPaidPrice(), $Transaction->getPaymentId(), $Transaction->getCurrency(), $Card->id, $Products, $PayoutMerchant, json_decode($Card->billing_info));
+                DB::commit();
+                
+                if($SubscriptionData['validity']==1) {
+                    $validity = '1 Month';
+                } elseif ($SubscriptionData['validity']==2) {
+                    $validity = '3 Months';
+                } elseif ($SubscriptionData['validity']==3) {
+                    $validity = '6 Months';
+                } else {
+                    $validity = '12 Months';
+                }
+
+                Session::flash('message', __('messages.subscriptions.buy_success')); 
+                Session::flash('icon', 'success'); 
+                Session::flash('heading', __('messages.common.success'));
+                return redirect()->route('dissubscriptions', ['page_name'=>'Subscription Plans']);
+
+            } else {
+                DB::rollback();
+                Session::flash('message', $Transaction->getErrorMessage()); 
+                Session::flash('icon', 'warning'); 
+                Session::flash('heading', __('messages.common.warning'));
+                return redirect()->back()->withInput($request->input());
+            }
+        } catch (Exception $e) {
+            DB::rollback();
+            return response()->view('error.500', ['message'=>$e->getMessage()], 500);
+        }
 
 ```
 

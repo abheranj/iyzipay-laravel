@@ -60,6 +60,37 @@ class IyzipayService
         }
     }
 
+    public function ThreedsInitializePayment($creditCard, $buyer_arr, $billaddress, $shipaddress, $products, $currency, $installment, $call_Back_url="", $subscription = false)
+    {
+        $this->validateHasCreditCard($creditCard);
+
+        try {
+            $transaction = $this->createThreedsInitializeTransactionOnIyzipay(
+                $creditCard,
+                $buyer_arr, 
+                $billaddress,
+                $shipaddress,
+                compact('products', 'currency', 'installment', 'call_Back_url'),
+                $subscription
+            );
+            return $transaction;
+        
+        } catch (\Exception $e) {
+            throw new TransactionSaveException($e->getMessage());
+        }
+    }
+
+    public function PayThreedsPayment($request_arr)
+    {
+        try {
+            $transaction = $this->createPayThreedsPayment($request_arr);
+            return $transaction;
+        
+        } catch (\Exception $e) {
+            throw new TransactionSaveException($e->getMessage());
+        }
+    }
+
     public function cancelPayment($iyzipay_key)
     {
         return $this->createCancelOnIyzipay($iyzipay_key);
@@ -87,7 +118,11 @@ class IyzipayService
         }
 
         if ($check->getStatus() != 'success') {
-            throw new IyzipayAuthenticationException();
+            if(!empty($check->getErrorMessage())){
+            	throw new IyzipayAuthenticationException($check->getErrorMessage());
+            } else {
+                throw new IyzipayAuthenticationException($check->getRawResult());
+            }
         }
     }
 
